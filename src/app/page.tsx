@@ -1,69 +1,224 @@
-import Image from "next/image";
+import { loadDashboardData } from "@/lib/dashboard/queries";
+import { computePnl } from "@/lib/engine/pnl";
+import { addDays } from "@/lib/ids";
+import { getStore } from "@/lib/store";
+import { DEMO_OWNER_UID } from "@/lib/owner";
+import { KpiTile } from "@/components/kpi/KpiTile";
+import { CashFlowChart } from "@/components/charts/CashFlowChart";
+import { MatchDonut } from "@/components/charts/MatchDonut";
+import { IngestionBars } from "@/components/charts/IngestionBars";
+import { AgingStack } from "@/components/charts/AgingStack";
+import { InOutBars } from "@/components/charts/InOutBars";
+import { GstBars } from "@/components/charts/GstBars";
+import { formatCompactINR, formatINR } from "@/lib/money";
+import { Badge } from "@/components/ui/badge";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function ControlPage() {
+  const data = await loadDashboardData();
+  const store = getStore();
+  const transactions = await store.listTransactions(DEMO_OWNER_UID);
+  const products = await store.listProducts(DEMO_OWNER_UID);
+  const pnl = computePnl(transactions, products, addDays(data.asOfDate, -29), data.asOfDate);
+
+  const panel = "bg-card border border-border";
+  const panelTitle = "text-[11px] uppercase tracking-wide text-muted-foreground px-3.5 pt-3";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="p-4 space-y-3 max-w-[1600px]">
+      <div className="flex items-baseline justify-between">
+        <h1 className="font-heading font-bold text-lg">Control</h1>
+        <span className="text-xs text-muted-foreground tabular-figures">as of {data.asOfDate}</span>
+      </div>
+
+      {/* Row 1: KPI strip */}
+      <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
+        <KpiTile label="Cash position" value={formatCompactINR(data.kpis.cashPaise)} caption="in hand" />
+        <KpiTile label="Bank balance" value={formatCompactINR(data.kpis.bankPaise)} caption="settled" />
+        <KpiTile label="Receivables" value={formatCompactINR(data.kpis.receivablesPaise)} caption="udhaar out" />
+        <KpiTile label="Payables" value={formatCompactINR(data.kpis.payablesPaise)} caption="owed to suppliers" />
+        <KpiTile label="Match rate" value={`${data.kpis.matchRatePct.toFixed(1)}%`} caption="settlements" />
+        <KpiTile label="Open exceptions" value={String(data.kpis.openExceptionsCount)} caption="need review" />
+        <KpiTile label="Net GST payable" value={formatCompactINR(data.kpis.netGstPayablePaise)} caption="this period" />
+        <KpiTile label="30-day net profit" value={formatCompactINR(pnl.netProfitPaise)} caption={`${pnl.grossMarginPct.toFixed(1)}% margin`} />
+      </div>
+
+      {/* Row 2 */}
+      <div className="grid grid-cols-12 gap-2">
+        <div className={`${panel} col-span-12 lg:col-span-6`}>
+          <div className={panelTitle}>Cash position, projected 21 days</div>
+          <div className="p-2">
+            <CashFlowChart data={data.cashFlowSeries} shortfallDate={data.shortfallDate} />
+          </div>
+          {data.shortfallDate && (
+            <div className="px-3.5 pb-3 text-xs text-critical">
+              Projected shortfall of {formatINR(data.shortfallPaise)} around {data.shortfallDate}, driven by{" "}
+              {data.forecastDrivers[0]?.label.toLowerCase()}.
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+        <div className={`${panel} col-span-6 lg:col-span-3`}>
+          <div className={panelTitle}>Reconciliation</div>
+          <div className="p-2">
+            <MatchDonut matched={data.matchSummary.matched} review={data.matchSummary.review} exception={data.matchSummary.exception} />
+          </div>
+        </div>
+        <div className={`${panel} col-span-6 lg:col-span-3 flex flex-col`}>
+          <div className={panelTitle}>Live exceptions</div>
+          <div className="p-2 flex-1 overflow-y-auto max-h-[190px] space-y-1.5">
+            {data.openExceptions.slice(0, 6).map((exc) => (
+              <div key={exc.id} className="flex items-center justify-between text-xs gap-2">
+                <span
+                  className={`size-1.5 shrink-0 rounded-full ${
+                    exc.severity === "high" ? "bg-critical" : exc.severity === "medium" ? "bg-warning" : "bg-serious"
+                  }`}
+                />
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {exc.kind.replaceAll("_", " ").toLowerCase()}
+                </Badge>
+                <span className="ml-auto tabular-figures text-muted-foreground truncate">
+                  {exc.amountPaise ? formatCompactINR(Math.abs(exc.amountPaise)) : ""}
+                </span>
+              </div>
+            ))}
+            {data.openExceptions.length === 0 && (
+              <div className="text-xs text-muted-foreground">No open exceptions.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3 */}
+      <div className="grid grid-cols-12 gap-2">
+        <div className={`${panel} col-span-12 lg:col-span-5`}>
+          <div className={panelTitle}>Multi-source ingestion</div>
+          <div className="p-2">
+            <IngestionBars data={data.ingestion} />
+          </div>
+        </div>
+        <div className={`${panel} col-span-6 lg:col-span-4`}>
+          <div className={panelTitle}>Khata aging</div>
+          <div className="p-2">
+            <AgingStack
+              data={[
+                { bucket: "0-7d", amountPaise: data.aging.d0to7Paise },
+                { bucket: "8-15d", amountPaise: data.aging.d8to15Paise },
+                { bucket: "16-30d", amountPaise: data.aging.d16to30Paise },
+                { bucket: "30d+", amountPaise: data.aging.d30PlusPaise },
+              ]}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <div className="px-3.5 pb-3 space-y-1">
+            {data.topDebtors.map((d) => (
+              <div key={d.partyId} className="flex justify-between text-xs">
+                <span className="truncate">{d.name}</span>
+                <span className="tabular-figures text-muted-foreground">{formatCompactINR(d.outstandingPaise)}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
+        <div className={`${panel} col-span-6 lg:col-span-3`}>
+          <div className={panelTitle}>Today&apos;s activity</div>
+          <div className="p-3.5 space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Sales recorded</span>
+              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "cash_sale" || t.type === "credit_sale").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Inventory purchases</span>
+              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "purchase").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Credit transactions</span>
+              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "credit_sale").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Payments settled</span>
+              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "payment_in" || t.type === "payment_out").length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 4 */}
+      <div className="grid grid-cols-12 gap-2">
+        <div className={`${panel} col-span-12 lg:col-span-5`}>
+          <div className={panelTitle}>Inflow / outflow, 14 days</div>
+          <div className="p-2">
+            <InOutBars data={data.inOutSeries} />
+          </div>
+        </div>
+        <div className={`${panel} col-span-6 lg:col-span-4`}>
+          <div className={panelTitle}>GST, input vs output</div>
+          <div className="p-2">
+            <GstBars outputPaise={data.gst.outputGstPaise} inputPaise={data.gst.inputGstPaise} />
+          </div>
+          <div className="px-3.5 pb-3 text-xs text-muted-foreground">
+            Net payable {formatCompactINR(data.gst.netPayablePaise)}
+          </div>
+        </div>
+        <div className={`${panel} col-span-6 lg:col-span-3`}>
+          <div className={panelTitle}>Detected recurring patterns</div>
+          <div className="p-3.5 space-y-2 text-xs max-h-[190px] overflow-y-auto">
+            {data.recurringPatterns.slice(0, 5).map((p, i) => (
+              <div key={i} className="flex justify-between">
+                <span className="text-muted-foreground">Every {p.medianGapDays}d</span>
+                <span className="tabular-figures">{(p.confidence * 100).toFixed(0)}% confident</span>
+              </div>
+            ))}
+            {data.recurringPatterns.length === 0 && (
+              <div className="text-muted-foreground">Not enough history yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 5: recent matches */}
+      <div className={`${panel} col-span-12`}>
+        <div className={panelTitle}>Recent matches</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border">
+                <th className="text-left font-normal px-3.5 py-2">Transaction</th>
+                <th className="text-left font-normal px-3.5 py-2">Method</th>
+                <th className="text-right font-normal px-3.5 py-2">Confidence</th>
+                <th className="text-left font-normal px-3.5 py-2">Decision</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.recentMatches.map((m) => {
+                const txn = data.transactionById.get(m.internalTxnId);
+                return (
+                  <tr key={m.id} className="border-b border-border last:border-0">
+                    <td className="px-3.5 py-2 tabular-figures">
+                      {txn ? formatINR(txn.amountPaise) : m.internalTxnId}
+                      <span className="text-muted-foreground ml-2">{txn?.partyNameRaw}</span>
+                    </td>
+                    <td className="px-3.5 py-2 text-muted-foreground">{m.method}</td>
+                    <td className="px-3.5 py-2 text-right tabular-figures">{(m.confidence * 100).toFixed(0)}%</td>
+                    <td className="px-3.5 py-2">
+                      <Badge
+                        className={
+                          m.decision === "MATCHED"
+                            ? "bg-good/15 text-good border-good/30"
+                            : m.decision === "REVIEW"
+                              ? "bg-warning/15 text-warning border-warning/30"
+                              : "bg-critical/15 text-critical border-critical/30"
+                        }
+                        variant="outline"
+                      >
+                        {m.decision}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
