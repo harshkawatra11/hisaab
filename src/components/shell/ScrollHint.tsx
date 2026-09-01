@@ -40,29 +40,28 @@ export function ScrollHint() {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-6 right-6 z-40 flex flex-col items-center gap-1"
+      className="pointer-events-none fixed bottom-5 left-1/2 md:left-[calc(50%+124px)] -translate-x-1/2 z-40 flex flex-col items-center gap-0.5 bg-card/90 backdrop-blur-md px-3 py-1 rounded-full border border-border/80 shadow-sm"
       style={{
         animation: "fadeInUp 0.6s ease forwards",
       }}
     >
-      <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70 font-mono">
+      <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-mono font-medium">
         scroll
       </span>
       <div
         className="flex flex-col items-center gap-0.5"
         style={{ animation: "scrollBounce 1.4s ease-in-out infinite" }}
       >
-        <ChevronDown className="size-4 text-muted-foreground/50" strokeWidth={1.5} />
-        <ChevronDown className="size-4 text-muted-foreground/30" strokeWidth={1.5} style={{ marginTop: "-10px" }} />
+        <ChevronDown className="size-3.5 text-muted-foreground/70" strokeWidth={2} />
       </div>
       <style>{`
         @keyframes scrollBounce {
-          0%, 100% { transform: translateY(0); opacity: 0.7; }
-          50% { transform: translateY(5px); opacity: 1; }
+          0%, 100% { transform: translateY(0); opacity: 0.6; }
+          50% { transform: translateY(3px); opacity: 1; }
         }
         @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(8px) translateX(-50%); }
+          to { opacity: 1; transform: translateY(0) translateX(-50%); }
         }
       `}</style>
     </div>

@@ -19,10 +19,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ControlPage() {
   const data = await loadDashboardData();
-  const store = getStore();
-  const transactions = await store.listTransactions(DEMO_OWNER_UID);
-  const products = await store.listProducts(DEMO_OWNER_UID);
-  const pnl = computePnl(transactions, products, addDays(data.asOfDate, -29), data.asOfDate);
+  const pnl = computePnl(data.transactions, data.products, addDays(data.asOfDate, -29), data.asOfDate);
 
   const panel = "bg-card border border-border";
   const panelTitle = "text-[11px] uppercase tracking-wide text-muted-foreground px-3.5 pt-3";

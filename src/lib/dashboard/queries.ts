@@ -14,13 +14,24 @@ import type { Account } from "@/lib/types";
 
 export async function loadDashboardData() {
   const store = getStore();
-  const [transactions, ledgerEntries, parties, products, matches, exceptions] = await Promise.all([
+  const [
+    transactions,
+    ledgerEntries,
+    parties,
+    products,
+    matches,
+    exceptions,
+    externalRecords,
+    latestRun,
+  ] = await Promise.all([
     store.listTransactions(DEMO_OWNER_UID),
     store.listLedgerEntries(DEMO_OWNER_UID),
     store.listParties(DEMO_OWNER_UID),
     store.listProducts(DEMO_OWNER_UID),
     store.listMatches(DEMO_OWNER_UID),
     store.listExceptions(DEMO_OWNER_UID),
+    store.listExternalRecords(DEMO_OWNER_UID),
+    store.getLatestRun(DEMO_OWNER_UID),
   ]);
 
   function balance(account: Account): number {
@@ -84,7 +95,6 @@ export async function loadDashboardData() {
   ];
 
   // Ingestion breakdown by external source.
-  const externalRecords = await store.listExternalRecords(DEMO_OWNER_UID);
   const bySource = new Map<string, { matched: number; review: number; exception: number }>();
   for (const source of ["bank", "upi", "invoice"] as const) {
     bySource.set(source, { matched: 0, review: 0, exception: 0 });
@@ -139,8 +149,6 @@ export async function loadDashboardData() {
     inOutSeries.push({ date: d, inflowPaise: row.inflow, outflowPaise: row.outflow, balancePaise: runningBalance });
   }
 
-  const latestRun = await store.getLatestRun(DEMO_OWNER_UID);
-
   // Precision / recall / F1 from the latest reconciliation run.
   // When no run has been stored yet (fresh data, no seed + eval),
   // approximate from the match decisions: precision uses matched /
@@ -192,6 +200,8 @@ export async function loadDashboardData() {
     transactionById,
     openExceptions,
     todayTxns,
+    transactions,
+    products,
     asOfDate,
   };
 }
