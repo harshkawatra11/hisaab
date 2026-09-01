@@ -4,7 +4,8 @@
 
 *हिसाब. The books, spoken into existence, then checked against the bank.*
 
-[![Live App](https://img.shields.io/badge/Live_App-hisaab--taupe.vercel.app-14306E?style=for-the-badge&logo=vercel&logoColor=white)](https://hisaab-taupe.vercel.app)
+[![Live App](https://img.shields.io/badge/Live_App-hisaab--hk.vercel.app-14306E?style=for-the-badge&logo=vercel&logoColor=white)](https://hisaab-hk.vercel.app)
+[![CI](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-122_passing-0ca30c?style=for-the-badge&logo=vitest&logoColor=white)](#testing-and-evaluation)
 [![License](https://img.shields.io/badge/license-Apache_2.0-fab219?style=for-the-badge)](LICENSE)
 
@@ -368,10 +369,33 @@ end to end even before those credentials are configured.
 
 ## Deployed on Vercel
 
-**Live at [hisaab-taupe.vercel.app](https://hisaab-taupe.vercel.app)**, connected directly to
+**Live at [hisaab-hk.vercel.app](https://hisaab-hk.vercel.app)**, connected directly to
 this repository's GitHub integration, building and promoting to production on every push to
 `master`. `src/lib/store.ts` selects Firestore automatically once the three `FIREBASE_*`
 variables are present as encrypted Vercel project environment variables.
+
+### Backend: Firestore on GCP
+
+GCP project `hisaab-hackathon-2026`, region `asia-south1` (Mumbai), Firestore Native mode,
+Spark free tier (50,000 reads, 20,000 writes, 20,000 deletes per day). Service account
+`hisaab-store@hisaab-hackathon-2026.iam.gserviceaccount.com` is scoped to exactly
+`roles/datastore.user`, the minimum permission needed to read and write documents: it
+cannot create resources, cannot access billing, and cannot touch any other GCP service even
+if the key were compromised. The three credential fields are stored as encrypted Vercel
+project environment variables, not in the repository.
+
+---
+
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push and pull request to `master`: lint, then test,
+then `next build`. Cheapest step first, so a lint failure does not waste minutes on a build.
+`next build` is used instead of standalone `tsc --noEmit` because Next.js generates ambient
+route types as a side effect of the build; a clean CI checkout without a prior `next dev` run
+would fail standalone typecheck on those generated types.
+
+Vercel's Git integration deploys independently of the GitHub Actions pipeline: a push to
+`master` triggers both simultaneously. To reproduce the full gate locally: `npm run verify`.
 
 ---
 
