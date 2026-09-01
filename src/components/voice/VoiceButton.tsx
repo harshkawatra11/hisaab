@@ -46,8 +46,8 @@ export function VoiceButton() {
         )}
         {isActive ? "Stop listening" : "Talk to Hisaab"}
       </button>
-      <div className="text-[11px] text-center text-sidebar-foreground/50 mt-1.5 tabular-figures">
-        {session.status === "idle" ? "typed" : session.statusLabel}
+      <div className="text-[10.5px] text-center text-sidebar-foreground/70 mt-2 px-1 leading-relaxed border border-sidebar-border/60 rounded bg-sidebar-accent/30 py-1.5 font-mono">
+        [ Live voice agent: under active development for Hackathon round ]
       </div>
 
       {dockOpen && (
