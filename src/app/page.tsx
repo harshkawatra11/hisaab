@@ -12,6 +12,8 @@ import { InOutBars } from "@/components/charts/InOutBars";
 import { GstBars } from "@/components/charts/GstBars";
 import { formatCompactINR, formatINR } from "@/lib/money";
 import { Badge } from "@/components/ui/badge";
+import { Landmark, Smartphone, FileText, Mic } from "lucide-react";
+import { ScrollHint } from "@/components/shell/ScrollHint";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,23 @@ export default async function ControlPage() {
           <div className="p-2">
             <MatchDonut matched={data.matchSummary.matched} review={data.matchSummary.review} exception={data.matchSummary.exception} />
           </div>
+          {/* P/R/F1 micro-table */}
+          <div className="px-3.5 pb-3 border-t border-border pt-2">
+            <div className="grid grid-cols-3 gap-1 text-center">
+              {([
+                { label: "Precision", value: data.evalMetrics.precision },
+                { label: "Recall", value: data.evalMetrics.recall },
+                { label: "F1", value: data.evalMetrics.f1 },
+              ] as const).map(({ label, value }) => (
+                <div key={label} className="space-y-0.5">
+                  <div className="text-[17px] font-heading font-bold tabular-figures text-foreground">
+                    {(value * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         <div className={`${panel} col-span-6 lg:col-span-3 flex flex-col`}>
           <div className={panelTitle}>Live exceptions</div>
@@ -93,6 +112,18 @@ export default async function ControlPage() {
       <div className="grid grid-cols-12 gap-2">
         <div className={`${panel} col-span-12 lg:col-span-5`}>
           <div className={panelTitle}>Multi-source ingestion</div>
+          {/* Source icon strip */}
+          <div className="flex gap-4 px-3.5 pt-2 pb-0 text-[10px] text-muted-foreground">
+            {(["bank", "upi", "invoice", "voice"] as const).map((src) => {
+              const Icon = src === "bank" ? Landmark : src === "upi" ? Smartphone : src === "invoice" ? FileText : Mic;
+              return (
+                <div key={src} className="flex items-center gap-1 capitalize">
+                  <Icon className="size-3" strokeWidth={1.5} />
+                  {src}
+                </div>
+              );
+            })}
+          </div>
           <div className="p-2">
             <IngestionBars data={data.ingestion} />
           </div>
@@ -118,25 +149,33 @@ export default async function ControlPage() {
             ))}
           </div>
         </div>
-        <div className={`${panel} col-span-6 lg:col-span-3`}>
+        {/* D4: Timestamped activity feed */}
+        <div className={`${panel} col-span-6 lg:col-span-3 flex flex-col`}>
           <div className={panelTitle}>Today&apos;s activity</div>
-          <div className="p-3.5 space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Sales recorded</span>
-              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "cash_sale" || t.type === "credit_sale").length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Inventory purchases</span>
-              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "purchase").length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Credit transactions</span>
-              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "credit_sale").length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Payments settled</span>
-              <span className="tabular-figures">{data.todayTxns.filter((t) => t.type === "payment_in" || t.type === "payment_out").length}</span>
-            </div>
+          <div className="p-2 flex-1 overflow-y-auto max-h-[190px] space-y-1">
+            {data.todayTxns.length === 0 && (
+              <div className="text-xs text-muted-foreground px-1.5 py-2">No transactions today.</div>
+            )}
+            {[...data.todayTxns]
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+              .slice(0, 8)
+              .map((t) => {
+                const time = new Date(t.createdAt).toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZone: "Asia/Kolkata",
+                });
+                const typeLabel = t.type.replace("_", " ");
+                return (
+                  <div key={t.id} className="flex items-center gap-2 text-xs">
+                    <span className="tabular-figures text-muted-foreground shrink-0 font-mono text-[10px]">{time}</span>
+                    <Badge variant="outline" className="text-[10px] shrink-0 capitalize">{typeLabel}</Badge>
+                    <span className="truncate text-muted-foreground">{t.partyNameRaw}</span>
+                    <span className="ml-auto tabular-figures shrink-0">{formatCompactINR(t.amountPaise)}</span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>
@@ -190,6 +229,13 @@ export default async function ControlPage() {
             <tbody>
               {data.recentMatches.map((m) => {
                 const txn = data.transactionById.get(m.internalTxnId);
+                const confPct = m.confidence * 100;
+                const confColor =
+                  m.decision === "MATCHED"
+                    ? "var(--color-good)"
+                    : m.decision === "REVIEW"
+                      ? "var(--color-warning)"
+                      : "var(--color-critical)";
                 return (
                   <tr key={m.id} className="border-b border-border last:border-0">
                     <td className="px-3.5 py-2 tabular-figures">
@@ -197,7 +243,20 @@ export default async function ControlPage() {
                       <span className="text-muted-foreground ml-2">{txn?.partyNameRaw}</span>
                     </td>
                     <td className="px-3.5 py-2 text-muted-foreground">{m.method}</td>
-                    <td className="px-3.5 py-2 text-right tabular-figures">{(m.confidence * 100).toFixed(0)}%</td>
+                    {/* D1: Inline confidence bar */}
+                    <td className="px-3.5 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${confPct}%`, backgroundColor: confColor }}
+                          />
+                        </div>
+                        <span className="tabular-figures text-[11px] text-muted-foreground w-7">
+                          {confPct.toFixed(0)}%
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-3.5 py-2">
                       <Badge
                         className={
@@ -219,6 +278,8 @@ export default async function ControlPage() {
           </table>
         </div>
       </div>
+
+      <ScrollHint />
     </div>
   );
 }

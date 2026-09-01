@@ -1,5 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# GCP service account key - never commit
+hisaab-sa.json
+*.json.key
+
+# Internal planning files
+snug-noodling-magpie.md
+
 # dependencies
 /node_modules
 /.pnp

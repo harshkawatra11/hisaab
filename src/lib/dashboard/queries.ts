@@ -139,6 +139,25 @@ export async function loadDashboardData() {
     inOutSeries.push({ date: d, inflowPaise: row.inflow, outflowPaise: row.outflow, balancePaise: runningBalance });
   }
 
+  const latestRun = await store.getLatestRun(DEMO_OWNER_UID);
+
+  // Precision / recall / F1 from the latest reconciliation run.
+  // When no run has been stored yet (fresh data, no seed + eval),
+  // approximate from the match decisions: precision uses matched /
+  // (matched + review) as an estimate, recall is not derivable without
+  // ground truth so we surface 0 honestly.
+  const evalMetrics = latestRun
+    ? {
+        precision: latestRun.precision ?? 0,
+        recall: latestRun.recall ?? 0,
+        f1: latestRun.f1 ?? 0,
+      }
+    : (() => {
+        const total = matchedCount + reviewCount;
+        const precision = total > 0 ? matchedCount / total : 0;
+        return { precision, recall: 0, f1: 0 };
+      })();
+
   const recentMatches = [...matches]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 12);
@@ -162,6 +181,7 @@ export async function loadDashboardData() {
     shortfallPaise: forecast.shortfallPaise,
     forecastDrivers: forecast.drivers,
     matchSummary: { matched: matchedCount, review: reviewCount, exception: openExceptions.length },
+    evalMetrics,
     ingestion,
     aging,
     topDebtors: customerAging.slice(0, 5),

@@ -20,7 +20,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${inter.variable} ${manrope.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex bg-background text-foreground">
+      <body className="h-screen overflow-hidden flex bg-background text-foreground">
         <TooltipProvider>
           <AppSidebar />
           <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
