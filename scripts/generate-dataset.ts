@@ -3,6 +3,8 @@
 // and a run summary to render on first load. Run with `npm run seed`.
 // Safe to re-run: it resets the demo owner's data first.
 
+process.env.HISAAB_SEED = "true";
+
 import { generateDataset } from "@/lib/seed/generator";
 import { executeReconciliation } from "@/lib/recon/run";
 import { DEMO_OWNER_UID } from "@/lib/owner";

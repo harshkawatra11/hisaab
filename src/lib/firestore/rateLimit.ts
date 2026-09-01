@@ -25,6 +25,10 @@ export class RateLimitExceededError extends Error {
 }
 
 export function assertWriteAllowed(count = 1): void {
+  // The seed script sets HISAAB_SEED=true to legitimately write a large
+  // synthetic dataset in one go. The rate limiter guards interactive
+  // voice-agent writes, not intentional bulk loads.
+  if (process.env.HISAAB_SEED === "true") return;
   const now = Date.now();
   if (now - windowStart > WINDOW_MS) {
     windowStart = now;

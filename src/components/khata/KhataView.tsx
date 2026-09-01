@@ -45,20 +45,40 @@ export function KhataView({ rows, initialFocusId }: { rows: KhataPartyRow[]; ini
           <Input placeholder="Search name..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {filtered.map((r) => (
-            <button
-              key={r.party.id}
-              onClick={() => setSelectedId(r.party.id)}
-              className={`w-full text-left px-3 py-2.5 border-b border-border text-sm flex items-center justify-between ${
-                selectedId === r.party.id ? "bg-muted" : "hover:bg-muted/50"
-              }`}
-            >
-              <span className="truncate">{r.party.name}</span>
-              <span className="tabular-figures text-xs text-muted-foreground shrink-0 ml-2">
-                {r.summary.outstandingPaise > 0 ? formatINR(r.summary.outstandingPaise) : "settled"}
-              </span>
-            </button>
-          ))}
+          {filtered.map((r) => {
+            const oldestBucket =
+              r.summary.aging.d30PlusPaise > 0
+                ? { label: "30d+", cls: "bg-critical/15 text-critical border-critical/30" }
+                : r.summary.aging.d16to30Paise > 0
+                  ? { label: "16-30d", cls: "bg-serious/15 text-serious border-serious/30" }
+                  : r.summary.aging.d8to15Paise > 0
+                    ? { label: "8-15d", cls: "bg-warning/15 text-warning border-warning/30" }
+                    : r.summary.outstandingPaise > 0
+                      ? { label: "0-7d", cls: "bg-good/15 text-good border-good/30" }
+                      : null;
+
+            return (
+              <button
+                key={r.party.id}
+                onClick={() => setSelectedId(r.party.id)}
+                className={`w-full text-left px-3 py-2.5 border-b border-border text-sm flex items-center justify-between ${
+                  selectedId === r.party.id ? "bg-muted" : "hover:bg-muted/50"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{r.party.name}</span>
+                  {oldestBucket && (
+                    <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 shrink-0 font-mono ${oldestBucket.cls}`}>
+                      {oldestBucket.label}
+                    </Badge>
+                  )}
+                </div>
+                <span className="tabular-figures text-xs text-muted-foreground shrink-0 ml-2">
+                  {r.summary.outstandingPaise > 0 ? formatINR(r.summary.outstandingPaise) : "settled"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
