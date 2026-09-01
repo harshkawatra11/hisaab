@@ -113,9 +113,10 @@ export const firestoreStore: HisaabStore = {
     const snap = await db
       .collection(COL.transactions)
       .where("ownerUid", "==", ownerUid)
-      .orderBy("date", "asc")
       .get();
-    return snap.docs.map((d) => d.data() as Transaction);
+    const docs = snap.docs.map((d) => d.data() as Transaction);
+    // Sort in JS to avoid requiring a composite index on (ownerUid, date).
+    return docs.sort((a, b) => a.date.localeCompare(b.date));
   },
   async getTransaction(id, ownerUid) {
     const db = getFirestoreDb();
@@ -236,10 +237,11 @@ export const firestoreStore: HisaabStore = {
     const snap = await db
       .collection(COL.runs)
       .where("ownerUid", "==", ownerUid)
-      .orderBy("createdAt", "desc")
-      .limit(1)
       .get();
-    return snap.empty ? undefined : (snap.docs[0].data() as ReconciliationRun);
+    if (snap.empty) return undefined;
+    // Sort in JS to avoid requiring a composite index on (ownerUid, createdAt).
+    const runs = snap.docs.map((d) => d.data() as ReconciliationRun);
+    return runs.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   },
 
   async saveForecast(ownerUid, forecast) {
