@@ -20,6 +20,13 @@ const ESTIMATED_SESSION_OPEN_TOKENS = estimateAudioTokens(90) + 1500;
 
 export async function POST() {
   if (!isGeminiConfigured()) {
+    // This branch looks identical from the client to a real service outage,
+    // but it almost always means GEMINI_API_KEY is simply absent from the
+    // environment (no .env.local, or a deploy target missing the variable).
+    // Logged loudly here so that distinction is never invisible again.
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[voice/token] GEMINI_API_KEY is not set, degrading to typed.");
+    }
     return NextResponse.json({
       rung: "typed",
       model: null,
@@ -57,8 +64,12 @@ export async function POST() {
     // Token minting failed for a reason unrelated to our own budget
     // tracking (network, an SDK surface mismatch, an expired key).
     // Degrade to the next rung down rather than surfacing a raw error
-    // to a live demo.
+    // to a live demo, but log it loudly outside production so this
+    // branch is never confused with the "no key configured" branch above.
     const message = err instanceof Error ? err.message : String(err);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[voice/token] mint failed, degrading to typed:", message);
+    }
     return NextResponse.json({
       rung: "typed",
       model: null,
