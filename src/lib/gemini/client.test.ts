@@ -147,4 +147,71 @@ describe("generateWithFallback", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("Groq fallback tier", () => {
+    const originalGroqKey = process.env.GROQ_API_KEY;
+    const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      process.env.GROQ_API_KEY = "groq-test-key";
+      fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+    });
+
+    afterEach(() => {
+      if (originalGroqKey) process.env.GROQ_API_KEY = originalGroqKey;
+      else delete process.env.GROQ_API_KEY;
+      if (originalOpenRouterKey) process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
+      else delete process.env.OPENROUTER_API_KEY;
+      vi.unstubAllGlobals();
+    });
+
+    it("is tried before OpenRouter when both keys are configured", async () => {
+      process.env.OPENROUTER_API_KEY = "or-test-key";
+      generateContentMock.mockRejectedValue(new Error("all Gemini models down"));
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: "groq reply" } }] }),
+      });
+
+      const { generateWithFallback } = await import("./client");
+      const result = await generateWithFallback([{ role: "user", parts: [{ text: "hi" }] }]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toContain("groq.com");
+      expect(result.response.text).toBe("groq reply");
+      expect(result.model).toContain("gpt-oss");
+    });
+
+    it("falls through to OpenRouter when Groq itself fails", async () => {
+      process.env.OPENROUTER_API_KEY = "or-test-key";
+      generateContentMock.mockRejectedValue(new Error("all Gemini models down"));
+      fetchMock
+        .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "rate limited" })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: "openrouter reply" } }] }),
+        });
+
+      const { generateWithFallback } = await import("./client");
+      const result = await generateWithFallback([{ role: "user", parts: [{ text: "hi" }] }]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toContain("groq.com");
+      expect(fetchMock.mock.calls[1][0]).toContain("openrouter.ai");
+      expect(result.response.text).toBe("openrouter reply");
+    });
+
+    it("does not attempt Groq at all when no key is configured", async () => {
+      delete process.env.GROQ_API_KEY;
+      delete process.env.OPENROUTER_API_KEY;
+      generateContentMock.mockRejectedValue(new Error("down"));
+      const { generateWithFallback, GeminiAllModelsFailedError } = await import("./client");
+      await expect(generateWithFallback([{ role: "user", parts: [{ text: "hi" }] }])).rejects.toThrow(
+        GeminiAllModelsFailedError
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

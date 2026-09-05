@@ -18,13 +18,17 @@ import { toOpenAITools } from "@/lib/agent/toOpenAITools";
 // new users", for it.
 const TEXT_MODEL_CHAIN = ["gemini-3.6-flash", "gemini-3.7-flash"];
 
-// Last-resort fallback if every Gemini text model fails. A different API
-// entirely (OpenAI-compatible), not another entry in TEXT_MODEL_CHAIN,
-// so it is handled as a separate final attempt inside generateWithFallback
-// rather than a chain entry. Verified directly against the real Scenario A
-// test sentence before being pinned; free OpenRouter models share upstream
-// pools and 429 intermittently, which is exactly the kind of failure this
-// whole fallback exists to survive, one layer further out.
+// Last-resort tiers if every Gemini text model fails. Different APIs
+// entirely (OpenAI-compatible), not more entries in TEXT_MODEL_CHAIN, so
+// each is handled as a separate final attempt inside generateWithFallback
+// rather than a chain entry. Groq is tried first: verified directly with a
+// real tool-calling request, fast, and its free tier is generous. OpenRouter
+// stays as the tier after it, since its free-model daily quota is shared
+// across every OpenRouter user and was observed to exhaust entirely during
+// this project's own heavy testing, exactly the kind of failure this whole
+// fallback exists to survive, one layer further out.
+const GROQ_MODEL = "openai/gpt-oss-120b";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -145,34 +149,36 @@ function contentsToOpenAIMessages(
   return messages;
 }
 
-/** The single last-resort call, made only after every Gemini text model
- *  has already failed. Verified directly against the real Scenario A test
- *  sentence before this was wired in. */
-async function tryOpenRouterFallback(
+/** One OpenAI-compatible chat-completions call, shared by every fallback
+ *  tier below Gemini. Groq and OpenRouter both speak this exact shape, so
+ *  the request building and response parsing live here once rather than
+ *  duplicated per provider. */
+async function callOpenAICompatible(
+  url: string,
+  apiKey: string,
+  model: string,
+  label: string,
+  extraHeaders: Record<string, string> | undefined,
   contents: GeminiContent[],
   config?: { systemInstruction?: unknown; tools?: { functionDeclarations?: unknown[] }[] }
 ): Promise<FallbackResponse> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set, cannot use the fallback tier.");
-
   const systemText =
     typeof config?.systemInstruction === "string" ? config.systemInstruction : undefined;
   const messages = contentsToOpenAIMessages(contents, systemText);
   const declarations = config?.tools?.[0]?.functionDeclarations;
   const tools = declarations ? toOpenAITools(declarations as never) : undefined;
 
-  const res = await fetch(OPENROUTER_URL, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://hisaab-hk.vercel.app",
-      "X-Title": "Hisaab",
+      ...extraHeaders,
     },
-    body: JSON.stringify({ model: OPENROUTER_FALLBACK_MODEL, messages, tools }),
+    body: JSON.stringify({ model, messages, tools }),
   });
   if (!res.ok) {
-    throw new Error(`OpenRouter fallback failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+    throw new Error(`${label} fallback failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
   }
   const data = await res.json();
   const choice = data.choices?.[0]?.message;
@@ -188,12 +194,46 @@ async function tryOpenRouterFallback(
   };
 }
 
+/** Fallback tiers tried in order, only after every Gemini text model has
+ *  already failed. Each entry is skipped entirely when its key is not set,
+ *  so a deployment with only some of these configured degrades gracefully
+ *  rather than throwing on a missing tier. */
+function getFallbackTiers(): { label: string; model: string; run: (contents: GeminiContent[], config?: Parameters<typeof callOpenAICompatible>[6]) => Promise<FallbackResponse> }[] {
+  const tiers: { label: string; model: string; run: (contents: GeminiContent[], config?: Parameters<typeof callOpenAICompatible>[6]) => Promise<FallbackResponse> }[] = [];
+  if (process.env.GROQ_API_KEY) {
+    tiers.push({
+      label: "Groq",
+      model: GROQ_MODEL,
+      run: (contents, config) =>
+        callOpenAICompatible(GROQ_URL, process.env.GROQ_API_KEY!, GROQ_MODEL, "Groq", undefined, contents, config),
+    });
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    tiers.push({
+      label: "OpenRouter",
+      model: OPENROUTER_FALLBACK_MODEL,
+      run: (contents, config) =>
+        callOpenAICompatible(
+          OPENROUTER_URL,
+          process.env.OPENROUTER_API_KEY!,
+          OPENROUTER_FALLBACK_MODEL,
+          "OpenRouter",
+          { "HTTP-Referer": "https://hisaab-hk.vercel.app", "X-Title": "Hisaab" },
+          contents,
+          config
+        ),
+    });
+  }
+  return tiers;
+}
+
 /**
  * Tries each model in the text chain in order, moving to the next on
  * any request-level failure or empty response, so one model being
  * unavailable, renamed or deprecated cannot take the chat feature down.
- * If every Gemini model fails, makes one last attempt against OpenRouter
- * before giving up, converting the tool schema only for that one call.
+ * If every Gemini model fails, walks the configured fallback tiers
+ * (Groq, then OpenRouter) in order, converting the tool schema only for
+ * those calls, before giving up entirely.
  */
 export async function generateWithFallback(
   contents: Parameters<GoogleGenAI["models"]["generateContent"]>[0]["contents"],
@@ -224,18 +264,21 @@ export async function generateWithFallback(
     }
   }
 
-  if (process.env.OPENROUTER_API_KEY) {
+  const tiers = getFallbackTiers();
+  const triedModels = [...chain];
+  for (const tier of tiers) {
+    triedModels.push(tier.model);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = await tryOpenRouterFallback(contents as any, config as any);
+      const response = await tier.run(contents as any, config as any);
       if (response.text || response.functionCalls?.length) {
-        return { response, model: OPENROUTER_FALLBACK_MODEL };
+        return { response, model: tier.model };
       }
-      causes.push(new Error(`Empty response from ${OPENROUTER_FALLBACK_MODEL}`));
+      causes.push(new Error(`Empty response from ${tier.label} (${tier.model})`));
     } catch (err) {
       causes.push(err);
     }
   }
 
-  throw new GeminiAllModelsFailedError([...chain, OPENROUTER_FALLBACK_MODEL], causes);
+  throw new GeminiAllModelsFailedError(triedModels, causes);
 }
