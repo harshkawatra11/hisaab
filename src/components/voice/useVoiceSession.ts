@@ -20,9 +20,23 @@ const HARD_CLOSE_MS = 8 * 60_000;
 // backstopped by the manual stop control for anything noisier.
 const CHUNK_MS = 100; // matches pcm-recorder.js's chunk size
 const SPEECH_RMS_THRESHOLD = 0.02;
-const SILENCE_MS_TO_END_TURN = 900;
-const MIN_SPEECH_MS_BEFORE_END = 300;
+const SILENCE_MS_TO_END_TURN = 1100;
+const MIN_SPEECH_MS_BEFORE_END = 500;
 const MAX_TURN_MS = 25_000;
+
+// Without headphones, the agent's own TTS output leaks back into the
+// mic and its echo/reverb tail can cross SPEECH_RMS_THRESHOLD, starting
+// a phantom turn from nothing the user said. This window is ignored
+// entirely right after playback ends, before VAD runs at all.
+const POST_SPEECH_COOLDOWN_MS = 500;
+// A single noisy 100ms chunk (a cough, a chair creak, echo) should not
+// be enough to cut the agent off mid-sentence; barge-in requires this
+// many consecutive above-threshold chunks first.
+const BARGE_IN_CHUNKS_REQUIRED = 2;
+// After this many turns in a row come back with no transcribable
+// speech, stop auto-relistening rather than keep spending STT credits
+// on a noisy room; the user has to manually re-engage the mic.
+const MAX_CONSECUTIVE_EMPTY_TURNS = 3;
 
 export type VoiceStatus =
   | "idle"
@@ -100,12 +114,19 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
   const historyRef = useRef<ChatHistoryMessage[]>([]);
   const stoppedRef = useRef(false);
 
+  // See POST_SPEECH_COOLDOWN_MS, BARGE_IN_CHUNKS_REQUIRED and
+  // MAX_CONSECUTIVE_EMPTY_TURNS above for why each of these exists.
+  const listeningCooldownUntilRef = useRef(0);
+  const bargeInStreakRef = useRef(0);
+  const consecutiveEmptyTurnsRef = useRef(0);
+
   const flushPlayback = useCallback(() => {
     playbackCtxRef.current?.close().catch(() => {});
     playbackCtxRef.current = null;
     playbackQueueTimeRef.current = 0;
     if (speakingResetRef.current) clearTimeout(speakingResetRef.current);
     speakingResetRef.current = null;
+    listeningCooldownUntilRef.current = Date.now() + POST_SPEECH_COOLDOWN_MS;
     setStatus((s) => (s === "speaking" ? "listening" : s));
   }, []);
 
@@ -127,6 +148,9 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
     turnSpeechDetectedRef.current = false;
     turnActiveRef.current = false;
     historyRef.current = [];
+    listeningCooldownUntilRef.current = 0;
+    bargeInStreakRef.current = 0;
+    consecutiveEmptyTurnsRef.current = 0;
     setStatus("idle");
     setDurationWarning(false);
   }, []);
@@ -157,6 +181,7 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
     if (speakingResetRef.current) clearTimeout(speakingResetRef.current);
     const msUntilDrained = Math.max(0, (playbackQueueTimeRef.current - ctx.currentTime) * 1000);
     speakingResetRef.current = setTimeout(() => {
+      listeningCooldownUntilRef.current = Date.now() + POST_SPEECH_COOLDOWN_MS;
       setStatus((s) => (s === "speaking" ? "listening" : s));
     }, msUntilDrained + 120);
   }, []);
@@ -227,14 +252,44 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
     [onFocus, speak]
   );
 
+  const flagEmptyTurn = useCallback(() => {
+    consecutiveEmptyTurnsRef.current += 1;
+    if (consecutiveEmptyTurnsRef.current >= MAX_CONSECUTIVE_EMPTY_TURNS) {
+      // A noisy room burning STT credits on nothing: stop the session
+      // properly (releasing the mic and audio contexts, not just
+      // changing what the status label says) rather than loop
+      // unattended. A re-click of the mic button calls start() fresh
+      // against a clean slate, since stop() already made status "idle".
+      stop();
+      setStatusLabel("Having trouble hearing you. Tap the mic to try again.");
+      return;
+    }
+    setStatusLabel("Didn't catch that, try again");
+    setStatus("listening");
+    setTimeout(() => {
+      setStatusLabel((label) => (label === "Didn't catch that, try again" ? "listening" : label));
+    }, 1500);
+  }, [stop]);
+
   const endTurn = useCallback(async () => {
     if (turnActiveRef.current) return;
     const chunks = turnChunksRef.current;
+    const speechMs = turnSpeechMsRef.current;
     turnChunksRef.current = [];
     turnSpeechDetectedRef.current = false;
     turnSilenceMsRef.current = 0;
     turnSpeechMsRef.current = 0;
     if (chunks.length === 0) return;
+
+    // A couple of borderline-energy chunks alone should never justify a
+    // real Sarvam credit: STT models tend to hallucinate plausible text
+    // from near-silent or noise-only audio rather than returning empty,
+    // so the honest place to block a phantom turn is before the network
+    // call, not by trying to filter its response afterward.
+    if (speechMs < MIN_SPEECH_MS_BEFORE_END) {
+      flagEmptyTurn();
+      return;
+    }
 
     turnActiveRef.current = true;
     setStatus("transcribing");
@@ -257,10 +312,11 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
 
       const text = (data.text ?? "").trim();
       if (!text) {
-        setStatus("listening");
+        flagEmptyTurn();
         turnActiveRef.current = false;
         return;
       }
+      consecutiveEmptyTurnsRef.current = 0;
       await runTurn(text);
     } catch (err) {
       setStatus("error");
@@ -268,7 +324,7 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
     } finally {
       turnActiveRef.current = false;
     }
-  }, [runTurn]);
+  }, [runTurn, flagEmptyTurn]);
 
   const handleMicChunk = useCallback(
     (buf: ArrayBuffer) => {
@@ -281,19 +337,28 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
       const isSpeech = energy > SPEECH_RMS_THRESHOLD;
 
       if (s === "speaking") {
-        // Barge-in: new speech while the agent is talking cuts it off
-        // and starts a fresh turn immediately.
+        // Barge-in: sustained speech while the agent is talking cuts it
+        // off and starts a fresh turn. A single noisy chunk (echo, a
+        // cough) is not enough on its own; BARGE_IN_CHUNKS_REQUIRED
+        // consecutive above-threshold chunks are required first.
         if (isSpeech) {
-          flushPlayback();
-          turnChunksRef.current = [pcm16];
-          turnSpeechDetectedRef.current = true;
-          turnSilenceMsRef.current = 0;
-          turnSpeechMsRef.current = CHUNK_MS;
+          bargeInStreakRef.current += 1;
+          if (bargeInStreakRef.current >= BARGE_IN_CHUNKS_REQUIRED) {
+            flushPlayback();
+            turnChunksRef.current = [pcm16];
+            turnSpeechDetectedRef.current = true;
+            turnSilenceMsRef.current = 0;
+            turnSpeechMsRef.current = CHUNK_MS;
+            bargeInStreakRef.current = 0;
+          }
+        } else {
+          bargeInStreakRef.current = 0;
         }
         return;
       }
 
       // s === "listening"
+      if (Date.now() < listeningCooldownUntilRef.current) return;
       if (!turnSpeechDetectedRef.current) {
         if (!isSpeech) return; // still silent, nothing to accumulate yet
         turnSpeechDetectedRef.current = true;
