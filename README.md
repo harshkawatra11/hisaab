@@ -6,13 +6,14 @@
 
 [![Live App](https://img.shields.io/badge/Live_App-hisaab--hk.vercel.app-14306E?style=for-the-badge&logo=vercel&logoColor=white)](https://hisaab-hk.vercel.app)
 [![CI](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-122_passing-0ca30c?style=for-the-badge&logo=vitest&logoColor=white)](#testing-and-evaluation)
+[![Tests](https://img.shields.io/badge/tests-130_passing-0ca30c?style=for-the-badge&logo=vitest&logoColor=white)](#testing-and-evaluation)
 [![License](https://img.shields.io/badge/license-Apache_2.0-fab219?style=for-the-badge)](LICENSE)
 
 [![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Firestore](https://img.shields.io/badge/Firestore-fab219?style=for-the-badge&logo=firebase&logoColor=white)](https://firebase.google.com/docs/firestore)
-[![Gemini](https://img.shields.io/badge/Gemini_Live-4a3aa7?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev)
+[![Sarvam](https://img.shields.io/badge/Sarvam_Speech-4a3aa7?style=for-the-badge&logo=google&logoColor=white)](https://www.sarvam.ai)
+[![Gemini](https://img.shields.io/badge/Gemini_Reasoning-4a3aa7?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev)
 
 [The claim](#the-claim-this-is-built-on) &middot;
 [One ledger, not four tools](#one-ledger-not-four-separate-tools) &middot;
@@ -22,7 +23,8 @@
 [Voice and the degradation ladder](#voice-and-the-degradation-ladder) &middot;
 [Backend deep dive](#backend-deep-dive) &middot;
 [Evaluation](#testing-and-evaluation) &middot;
-[Run it](#running-it-locally)
+[Run it](#running-it-locally) &middot;
+[What broke at 2 AM](#what-broke-at-2-am)
 
 </div>
 
@@ -39,12 +41,15 @@ are not a measurement of reconciliation error rates, and no public transaction-l
 vendor dataset exists, which is why the data in this build is synthetic and the generator is
 documented in full below.
 
-The specific gap this product targets: a retailer who extends credit to a regular customer, the
-OkCredit and Khatabook problem space, keeps that side of the ledger in a notebook or a phone app
-that has never once been checked against a bank statement, a UPI settlement export, or a
-supplier's invoice. OkCredit and Khatabook already track a credit ledger well. Neither reconciles
-that ledger against a bank statement and a payment export at the same time and shows where they
-disagree. That is the whole differentiator, stated plainly rather than as a marketing line.
+The specific gap this product targets: a small or medium Indian business, a kirana store, a
+wholesaler, an MSME, a first-time entrepreneur, a small service or advertising business, that
+extends credit to a regular customer, the OkCredit and Khatabook problem space, and keeps that
+side of the ledger in a notebook or a phone app that has never once been checked against a bank
+statement, a UPI settlement export, or a supplier's invoice. OkCredit and Khatabook already track
+a credit ledger well. Neither reconciles that ledger against a bank statement and a payment export
+at the same time and shows where they disagree. That is the whole differentiator, stated plainly
+rather than as a marketing line. Kirana is the largest and most visible segment of this problem,
+not the only one this is built for.
 
 > The four track directions this build answers are not four features bolted together. They are
 > four views of one ledger: reconciliation is the ledger checked against outside evidence,
@@ -116,13 +121,14 @@ mindmap
         automatic fallback
       In-process write rate limiter
     Voice layer, optional
-      Gemini Live API
-      Ephemeral tokens
-      Token-budget degradation ladder
+      Sarvam speech: STT + TTS
+      Gemini text reasoning
+      OpenRouter last-resort fallback
+      Client-side voice activity detection
       Indian-numeral parser
       8 agent tools
     Tooling
-      Vitest, 122 tests
+      Vitest, 130 tests
       ESLint
       tsx seed and eval scripts
 ```
@@ -140,8 +146,9 @@ mindmap
 | **Recharts, via shadcn's ChartContainer** | Every chart's colors pass the `dataviz` skill's CVD-separation and lightness-band checks; reconciliation state (matched/review/exception) uses a validated status palette, never a generic categorical hue | `src/components/charts/` |
 | **Firestore (`firebase-admin`)** | The production case store, selected automatically once a service account is present, scoped to `roles/datastore.user` only | `src/lib/store/firestoreStore.ts` |
 | **Local JSON file store** | The zero-setup fallback: the whole product runs with `npm install && npm run dev`, no cloud account | `src/lib/store/fileStore.ts` |
-| **`@google/genai` (Gemini Live)** | The voice layer. Understands speech, chooses a tool, reads back a number the engine already computed. Never allowed to compute money itself | `src/lib/gemini/`, `src/lib/agent/` |
-| **Vitest** | 122 tests: every posting function's debit-credit invariant, every reconciliation signal and defect class, the split-payment detector, the Indian-numeral parser, the token-budget ladder, the Gemini fallback chain mocked at the SDK boundary | `src/**/*.test.ts` |
+| **Sarvam (`bulbul:v3` TTS, `saaras:v3` STT)** | The ears and mouth of the voice layer. Speech in, speech out, verified directly against the real sample rate returned rather than assumed | `src/lib/voice/` |
+| **Gemini (`generateContent`, native tool calling)** | The brain. Understands the transcript, chooses a tool, reads back a number the engine already computed. Never allowed to compute money itself. `gemini-3.6-flash` primary, `gemini-3.7-flash` second, an OpenRouter free model as a last-resort third tier | `src/lib/gemini/client.ts`, `src/lib/agent/` |
+| **Vitest** | 130 tests: every posting function's debit-credit invariant, every reconciliation signal and defect class, the split-payment detector, the Indian-numeral parser, the Gemini fallback chain (including the OpenRouter tier) mocked at the SDK/fetch boundary | `src/**/*.test.ts` |
 | **Vercel** | Hosts the live deployment; Firestore and Gemini credentials are set as encrypted project environment variables | this file, deployment section below |
 
 ---
@@ -156,7 +163,7 @@ calculated.**
 
 ```mermaid
 graph TD
-    A[Merchant: speaks or types] -->|Live session or /api/chat| B[Model: understand + choose a tool]
+    A[Merchant: speaks or types] -->|Sarvam STT or typed text| B[Gemini text: understand + choose a tool]
     B -->|record_business_events, get_party_balance, ...| C[dispatchTool]
     C --> D[Deterministic engine]
     D --> E[Double-entry posting<br/>engine/posting.ts]
@@ -178,7 +185,7 @@ graph TD
     O --> I
     I --> P[Dashboard: Control, Reconcile, Khata, Books]
     C -->|spokenSummary, engine numbers only| B
-    B -->|speaks the number back| A
+    B -->|Sarvam TTS speaks the number back| A
 
     style B fill:#eef1f6,stroke:#14306e,stroke-dasharray: 4 3
     style N fill:#eef1f6,stroke:#14306e,stroke-dasharray: 4 3
@@ -194,7 +201,7 @@ deducted, and the honest exception this produces.
 ```mermaid
 sequenceDiagram
     participant M as Merchant
-    participant V as Voice / chat agent
+    participant V as Voice agent (Sarvam + Gemini)
     participant E as Deterministic engine
     participant S as Store
     participant R as Reconciliation engine
@@ -218,35 +225,57 @@ sequenceDiagram
 
 ---
 
-## Voice and the degradation ladder
+## Voice, and why it is a turn loop rather than a single live socket
 
-One click on the sidebar's voice button opens a Gemini Live session. The agent speaks first,
-grounded by a deterministic primer (today's transaction count, credit-sale count, cash position),
-never an invented opener. A voice dock shows the live transcript and every tool call as it
-happens, `record_business_events -> 3 events posted`, so the mechanism is visible, not hidden
-behind a chat bubble.
+One click on the sidebar's voice button opens a session built as **listen, think, speak**, a turn
+loop across two independently verified providers, not one duplex socket: Sarvam handles speech in
+and speech out, Gemini's text model handles the reasoning and the tool calls in between. The agent
+speaks first, grounded by a deterministic primer (today's transaction count, credit-sale count,
+cash position), never an invented opener. A voice dock shows every tool call as it happens,
+`record_business_events -> 3 events posted`, so the mechanism is visible, not hidden behind a chat
+bubble, and the status chip names exactly what stage a turn is in: `listening`, `transcribing`,
+`thinking`, `speaking`, never a silent gap.
 
-**The account's four Live models carry unlimited requests per minute and per day; only tokens
-per minute is capped.** Audio bills at 25 tokens/second, and Live API session memory re-bills at
-the standard input rate, so a long session is the real threat to the budget, not a high request
-count. `src/lib/limits/budget.ts` is a token-budget limiter, not a request counter, ceilinged at
-70% of the account's real TPM to absorb the estimation error that comes from `countTokens` being
-unsupported on Live models. A session soft-warns at 6 minutes and hard-closes at 8.
+**Why a turn loop, and not Gemini's real-time audio socket.** The repository still contains a
+complete, correct Gemini Live implementation (`src/lib/gemini/live.ts`, `src/lib/limits/budget.ts`,
+`/api/voice/token`), including a real fix made during this build: ephemeral tokens require the
+SDK's `v1alpha` surface, not its default `v1beta`, or the socket opens and silently closes. That
+fix is in the code and works. What does not currently work, on this project's Gemini account
+specifically, is real-time audio output: two different API keys were each tested directly against
+the raw WebSocket, bypassing the SDK entirely to read the true close reason, and each failed for a
+different platform-level reason, one with billing credits depleted (`1011`), the other with the
+requested `AUDIO` response modality rejected outright (`1007`, a plan-tier restriction, reproduced
+identically across two SDK builds and two request shapes). Neither is a code defect. Gemini's text
+generation, by contrast, worked immediately and needed no schema conversion, since the app's tool
+declarations were already written in Gemini's own native shape. So the brain stayed on Gemini text,
+and Sarvam, verified directly against real audio bytes and a real transcript before a line of UI
+code was written against it, became the ears and the mouth. The full account of this, in the order
+it was actually discovered, is below in ["What broke at 2 AM"](#what-broke-at-2-am).
 
-When a model's budget is exhausted, the product degrades through a ladder rather than dying:
+The turn loop itself, in `src/components/voice/useVoiceSession.ts`:
 
-| Rung | What happens |
+| Stage | What happens |
 | :--- | :--- |
-| Full duplex | Primary dialog model, native audio in and out |
-| Fallback duplex | Secondary dialog model, carrying 1M TPM of headroom |
-| Transcribe only | Speech becomes text via a transcribe-only model; the text agent still reasons and posts, the reply comes back as text instead of speech |
-| Typed | The identical tool set through `/api/chat`, no microphone at all |
+| Listening | Mic streams PCM16 via an `AudioWorkletProcessor`; client-side RMS energy detects speech, then silence, to end the turn without a fixed timer |
+| Transcribing | The turn's audio posts to `/api/voice/stt`, a thin server route wrapping Sarvam `saaras:v3` |
+| Thinking | The transcript goes to `/api/chat`, the same tool-calling loop the typed chat uses, against `generateWithFallback()`: `gemini-3.6-flash`, then `gemini-3.7-flash`, then one last-resort OpenRouter call, in that order, only advancing to the next tier on a real failure or an empty response |
+| Speaking | The reply text posts to `/api/voice/tts` (Sarvam `bulbul:v3`), decoded at whatever sample rate the response actually carries, never a hardcoded guess, and played through the existing gapless queue |
+
+**Barge-in.** If voice activity is detected while the agent is speaking, playback stops immediately
+and a new turn opens, so an interruption feels like a real conversation rather than a wait.
+
+**Latency is real and stated plainly, not hidden.** A turn crosses two providers and typically
+lands in single-digit seconds; `thinkingConfig.thinkingLevel: "LOW"` on every Gemini call is what
+keeps it there, cutting an identical tool-calling request from 277 seconds to 3.5 seconds in direct
+testing, since a tool-dispatching agent does not need deep reasoning to choose which function to
+call.
 
 Spoken Indian quantities, `dhai`, `sava`, `derh`, `paune`, `bara sau`, `lakh`, `crore`, are
 resolved by a deterministic parser (`src/lib/agent/numerals.ts`) before they ever reach the
-posting engine. A model that mishears `dhai kilo` as `2 kilo` posts a wrong ledger entry, and no
-amount of prompt engineering makes that safe, so the parser rejects an unrecognised phrase
-outright rather than guessing.
+posting engine, and a plain digit string (`"2"`) is accepted outright as exact rather than forced
+through word-form parsing. A model that mishears `dhai kilo` as `2 kilo` posts a wrong ledger
+entry, and no amount of prompt engineering makes that safe, so the parser rejects an unrecognised
+phrase outright rather than guessing.
 
 ---
 
@@ -292,12 +321,13 @@ than in a typical CRUD app since one spoken sentence can post several transactio
 
 ## Testing and evaluation
 
-**122 tests**, `npm run test`: every posting function's balance invariant, every reconciliation
+**130 tests**, `npm run test`: every posting function's balance invariant, every reconciliation
 signal and every injected defect class with its own fixture, the split-payment detector, FIFO
 khata settlement and aging-bucket boundaries at exactly 7, 15 and 30 days, the recurring-pattern
 detector on a synthetic weekly restock, the GST mismatch threshold, the Indian-numeral parser
-across Latin and Devanagari forms, the token-budget ladder under a fake clock, and the Gemini
-model fallback chain mocked at the SDK boundary.
+across Latin and Devanagari forms including plain digit strings, a multi-item voice order for one
+customer resolved end to end against a seeded catalog, and the Gemini model fallback chain,
+including its OpenRouter last-resort tier, mocked at the SDK and fetch boundary.
 
 **A real evaluation harness**, `npm run eval`, runs the exact reconciliation pipeline the app
 uses against a deterministic, seeded 90-day synthetic dataset (784 internal transactions, 166
@@ -346,15 +376,17 @@ npm run build    # production build
 npm run verify   # lint + typecheck + test + build, in that cheapest-first order
 ```
 
-### Optional: Gemini voice and chat
+### Optional: voice and chat
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey). Without a
-key, the voice button and chat both show a clear inline message rather than failing silently,
-the same state the automated test suite runs against.
+Fill in `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) for text
+reasoning, and `SARVAM_API_KEY` from [Sarvam AI](https://www.sarvam.ai) for speech in and out.
+`OPENROUTER_API_KEY` is optional, a last-resort fallback if every Gemini model fails. Without
+`GEMINI_API_KEY`, the voice button and chat both show a clear inline message rather than failing
+silently, the same state the automated test suite runs against.
 
 ### Optional: Firestore persistence
 
@@ -420,17 +452,73 @@ reconciliation match.
 ## What is covered, and what is not
 
 No live UPI rails, no NPCI membership, no Account Aggregator access, no bank core write access:
-only a regulated entity can transact on those rails, and this is a hackathon prototype, not a
-licensed financial institution. The reconciliation loop runs against documented synthetic bank,
-UPI and invoice data, generated by a seeded script rather than presented as real. This is not an
-accounting system of record and not tax advice.
+only a regulated entity can transact on those rails, and this build is not a licensed financial
+institution. The reconciliation loop runs against documented synthetic bank, UPI and invoice data,
+generated by a seeded script rather than presented as real. This is not an accounting system of
+record and not tax advice.
 
-The prototype runs as a single demo merchant with no sign-in. The store layer already takes and
-checks an owner id on every read and write (`ownerUid`, checked inside the store, not trusted
-from the caller), so real authentication is a change to one constant's call sites
-(`src/lib/owner.ts`) rather than a change to every route later. WhatsApp settlement reminders,
-named as a future direction for the Khata screen, are not wired: the button says so on its face
-rather than pretending otherwise.
+The app runs as a single demo merchant with no sign-in. The store layer already takes and checks
+an owner id on every read and write (`ownerUid`, checked inside the store, not trusted from the
+caller), so real authentication is a change to one constant's call sites (`src/lib/owner.ts`)
+rather than a change to every route later. WhatsApp settlement reminders, visible as a badge on
+the Khata screen, are a stated data boundary rather than an unfinished feature: a real send needs
+a live phone number and a live bank feed, and this build runs on seeded data, so the badge says
+exactly that rather than claiming a broken control.
+
+---
+
+## What broke at 2 AM
+
+The voice agent is the whole product. A shopkeeper who cannot read a dashboard can still talk to
+it. And for a stretch of this build, it never spoke: every session came back with the same calm
+message, voice unavailable, type instead.
+
+**The first two suspects were both wrong.** The hardest failure looked most likely first: four
+Gemini Live model ids hardcoded in the client, probably renamed or deprecated. Checked against the
+live API with a real key, all four were current and correct. Next suspicion: the degrade-to-typed
+fallback swallowing a thrown error. It was not. It was the first branch of the token route,
+behaving exactly as written, because there was no `.env.local` in the repository at all, locally,
+ever. Adding one fixed the token mint immediately.
+
+**Reading code would never have found what came next.** Driving a headless browser at the running
+app and logging every WebSocket frame surfaced two real defects: the SDK warned that ephemeral
+tokens only work on the `v1alpha` surface while the client connected on the default `v1beta`, so
+the socket opened and closed with nothing shown to the user, and the playback code set status to
+"speaking" on every audio chunk and never set it back. Both fixed. The socket still closed,
+silently, instantly.
+
+**Connecting raw, outside the browser and the SDK, finally read the real close frame the
+abstraction had been hiding:** `code 1011, "Your prepayment credits are depleted."` Not a bug. A
+billing account with nothing left in it, on every Gemini surface, text generation included.
+
+**A second key told a more interesting story than "problem solved."** Text generation worked
+immediately, first try, on the real sentence a shopkeeper would actually say. Live's real-time
+audio output did not: the socket opened, then closed with a different code, `1007`, rejecting a
+request that plainly asked for audio, routed to a model name neither of us had seen before.
+Reproduced identically across two SDK builds and two config shapes. Not a bug in the code a second
+time either, a plan-tier restriction on real-time audio output, distinct from the first key's
+billing problem, on a surface with no lever to pull from this side.
+
+**How we got out, twice in one session.** The product was built so the model was never
+load-bearing: every rupee is computed by deterministic code, the model only listens, chooses a
+tool, and reads back what the engine already calculated. That decision, made weeks earlier for
+correctness reasons, turned two dead ends into an afternoon of work instead of a rewrite, twice.
+Gemini stayed for reasoning, since it was the piece that actually worked. Sarvam, verified directly
+against real audio bytes before a line of UI code was written against it, replaced only the parts
+that did not work, speech in and speech out. A third provider tried for voice along the way gated
+its text-to-speech behind a paid plan, found out the same way, by testing it before building on it,
+and was removed from the codebase entirely rather than left dormant. The tool schema Gemini already
+used needed no rewrite at all, because it was already correct.
+
+**What we took from it.** Check the boring explanation before the interesting one. A missing
+config file, a depleted account, and a plan-tier limit all look identical from outside the system,
+and only the actual API response tells you which one you are looking at. Every abstraction that
+turns a failure into a friendly message is a place a real error goes to hide, so make it loud
+somewhere. Verify a provider directly, with a real request, before writing a line of code against
+it, because two different providers cost real time by looking fully configured right up until the
+one call that mattered returned 402 or 1007. And keep the model out of the load-bearing path,
+because the day a provider disappears is the day you find out whether you built a product or a
+wrapper around someone else's API staying up.
 
 ---
 

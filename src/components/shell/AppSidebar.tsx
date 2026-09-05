@@ -86,7 +86,7 @@ export function AppSidebar() {
       </div>
 
       <div className="px-5 py-4 border-t border-sidebar-border text-xs text-sidebar-foreground/50">
-        Prototype, no sign-in
+        Demo mode, no sign-in
       </div>
     </aside>
   );

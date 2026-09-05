@@ -79,7 +79,7 @@ export function MethodologyContent() {
         <h3 className="font-heading font-semibold mb-2">What is simulated, what is real</h3>
         <p className="text-muted-foreground">
           No live UPI rails, no NPCI membership, no Account Aggregator access, no bank core write
-          access. Only a regulated entity can transact on those rails. This prototype simulates
+          access. Only a regulated entity can transact on those rails. This demo simulates
           the reconciliation loop against documented synthetic bank, UPI and invoice data. Not an
           accounting system of record and not tax advice.
         </p>
@@ -88,7 +88,7 @@ export function MethodologyContent() {
       <section>
         <h3 className="font-heading font-semibold mb-2">Sign-in</h3>
         <p className="text-muted-foreground">
-          This prototype runs as a single demo merchant with no login. The store layer already
+          This build runs as a single demo merchant with no login. The store layer already
           takes and checks an owner id on every read and write, so real authentication is a
           change to one function rather than a change to every call site later.
         </p>

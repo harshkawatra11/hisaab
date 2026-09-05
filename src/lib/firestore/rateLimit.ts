@@ -7,7 +7,8 @@
 // through record_business_events, each a handful of writes.
 //
 // Fixed-window counter held in memory: resets on cold start, per
-// instance, not global. Accepted limitation for a hackathon prototype.
+// instance, not global. Accepted limitation at this scale, a real
+// distributed limiter would need a shared store.
 
 const WRITE_LIMIT = 30;
 const WINDOW_MS = 60_000;
