@@ -12,6 +12,8 @@ import {
   focusDashboardSchema,
   forecastCash,
   getCashPosition,
+  getCreditScore,
+  getCreditScoreSchema,
   getPartyBalance,
   getPartyBalanceSchema,
   getPnl,
@@ -31,6 +33,7 @@ export type ToolName =
   | "list_exceptions"
   | "explain_match"
   | "get_pnl"
+  | "get_credit_score"
   | "focus_dashboard";
 
 export async function dispatchTool(ctx: ToolContext, name: string, args: unknown): Promise<ToolResult> {
@@ -50,6 +53,8 @@ export async function dispatchTool(ctx: ToolContext, name: string, args: unknown
         return await explainMatch(ctx, explainMatchSchema.parse(args));
       case "get_pnl":
         return await getPnl(ctx, getPnlSchema.parse(args));
+      case "get_credit_score":
+        return await getCreditScore(ctx, getCreditScoreSchema.parse(args));
       case "focus_dashboard":
         return await focusDashboard(ctx, focusDashboardSchema.parse(args));
       default:
@@ -157,6 +162,15 @@ export const TOOL_DECLARATIONS = [
         toDate: { type: "STRING", description: "yyyy-MM-dd" },
       },
       required: ["fromDate", "toDate"],
+    },
+  },
+  {
+    name: "get_credit_score",
+    description: "Gets a customer's deterministic credit-risk score (0 to 100) and its band (good, fair, poor), based on payment aging, historical lateness and reconciliation exceptions.",
+    parameters: {
+      type: "OBJECT",
+      properties: { partyName: { type: "STRING" } },
+      required: ["partyName"],
     },
   },
   {

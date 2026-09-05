@@ -12,6 +12,7 @@ import { formatCompactINR, formatINR } from "@/lib/money";
 import { postExpense, postPayment, postPurchase, postSale } from "@/lib/engine/posting";
 import { applyTransactionToInventory } from "@/lib/engine/inventory";
 import { computePartyKhata } from "@/lib/engine/khata";
+import { computeCreditScore } from "@/lib/engine/creditScore";
 import { computeGstSummary } from "@/lib/engine/tax";
 import { computePnl } from "@/lib/engine/pnl";
 import { forecastCashPosition } from "@/lib/engine/forecast";
@@ -260,6 +261,52 @@ export async function getPartyBalance(
       summary.outstandingPaise > 0
         ? `${best.name} owes ${formatINR(summary.outstandingPaise)}, across ${summary.openSales.length} open ${summary.openSales.length === 1 ? "sale" : "sales"}.`
         : `${best.name} has no outstanding balance.`,
+  };
+}
+
+// --- get_credit_score ----------------------------------------------------
+
+export const getCreditScoreSchema = z.object({ partyName: z.string().min(1) });
+
+const BAND_LABEL_HINGLISH: Record<string, string> = {
+  good: "achha",
+  fair: "theek-thaak",
+  poor: "kamzor",
+};
+
+export async function getCreditScore(
+  ctx: ToolContext,
+  args: z.infer<typeof getCreditScoreSchema>
+): Promise<ToolResult> {
+  const { store, ownerUid } = ctx;
+  const all = await store.listParties(ownerUid);
+  const normalized = normalizeName(args.partyName);
+  let best = all.find((p) => p.normalizedName === normalized);
+  if (!best) {
+    let bestScore = 0;
+    for (const p of all) {
+      const score = nameSim(normalized, p.normalizedName);
+      if (score > bestScore) {
+        bestScore = score;
+        best = p;
+      }
+    }
+    if (bestScore < 0.6) best = undefined;
+  }
+  if (!best) {
+    return fail(`I don't have a party matching "${args.partyName}" on record.`);
+  }
+
+  const [transactions, exceptions] = await Promise.all([
+    store.listTransactions(ownerUid),
+    store.listExceptions(ownerUid),
+  ]);
+  const result = computeCreditScore(transactions, exceptions, best.id);
+
+  return {
+    ok: true,
+    data: { party: best, ...result },
+    spokenSummary: `${best.name} ka credit score ${result.score} hai, ${BAND_LABEL_HINGLISH[result.band]} hai.`,
   };
 }
 

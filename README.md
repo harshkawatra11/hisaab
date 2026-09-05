@@ -6,7 +6,7 @@
 
 [![Live App](https://img.shields.io/badge/Live_App-hisaab--hk.vercel.app-14306E?style=for-the-badge&logo=vercel&logoColor=white)](https://hisaab-hk.vercel.app)
 [![CI](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harshkawatra11/hisaab/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-130_passing-0ca30c?style=for-the-badge&logo=vitest&logoColor=white)](#testing-and-evaluation)
+[![Tests](https://img.shields.io/badge/tests-134_passing-0ca30c?style=for-the-badge&logo=vitest&logoColor=white)](#testing-and-evaluation)
 [![License](https://img.shields.io/badge/license-Apache_2.0-fab219?style=for-the-badge)](LICENSE)
 
 [![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
@@ -106,6 +106,7 @@ mindmap
       GST summary + invoice tax check
       Weighted-average-cost P&L
       Recurring-pattern cash forecaster
+      Published-formula credit-risk score
     Reconciliation engine
       Normalize: date, name, reference
       Four signals: amount, date, name, reference
@@ -126,9 +127,9 @@ mindmap
       OpenRouter last-resort fallback
       Client-side voice activity detection
       Indian-numeral parser
-      8 agent tools
+      9 agent tools
     Tooling
-      Vitest, 130 tests
+      Vitest, 134 tests
       ESLint
       tsx seed and eval scripts
 ```
@@ -148,7 +149,7 @@ mindmap
 | **Local JSON file store** | The zero-setup fallback: the whole product runs with `npm install && npm run dev`, no cloud account | `src/lib/store/fileStore.ts` |
 | **Sarvam (`bulbul:v3` TTS, `saaras:v3` STT)** | The ears and mouth of the voice layer. Speech in, speech out, verified directly against the real sample rate returned rather than assumed | `src/lib/voice/` |
 | **Gemini (`generateContent`, native tool calling)** | The brain. Understands the transcript, chooses a tool, reads back a number the engine already computed. Never allowed to compute money itself. `gemini-3.6-flash` primary, `gemini-3.7-flash` second, an OpenRouter free model as a last-resort third tier | `src/lib/gemini/client.ts`, `src/lib/agent/` |
-| **Vitest** | 130 tests: every posting function's debit-credit invariant, every reconciliation signal and defect class, the split-payment detector, the Indian-numeral parser, the Gemini fallback chain (including the OpenRouter tier) mocked at the SDK/fetch boundary | `src/**/*.test.ts` |
+| **Vitest** | 134 tests: every posting function's debit-credit invariant, every reconciliation signal and defect class, the split-payment detector, the Indian-numeral parser, the credit-score formula's bands and clamp, the Gemini fallback chain (including the OpenRouter tier) mocked at the SDK/fetch boundary | `src/**/*.test.ts` |
 | **Vercel** | Hosts the live deployment; Firestore and Gemini credentials are set as encrypted project environment variables | this file, deployment section below |
 
 ---
@@ -321,7 +322,7 @@ than in a typical CRUD app since one spoken sentence can post several transactio
 
 ## Testing and evaluation
 
-**130 tests**, `npm run test`: every posting function's balance invariant, every reconciliation
+**134 tests**, `npm run test`: every posting function's balance invariant, every reconciliation
 signal and every injected defect class with its own fixture, the split-payment detector, FIFO
 khata settlement and aging-bucket boundaries at exactly 7, 15 and 30 days, the recurring-pattern
 detector on a synthetic weekly restock, the GST mismatch threshold, the Indian-numeral parser
@@ -441,6 +442,7 @@ Vercel's Git integration deploys independently of the GitHub Actions pipeline: a
 | Ambiguous counterparty candidate (72-90% band) | Presents the candidate list | May propose one, capped at 89%, never auto-posted |
 | GST and tax arithmetic | Decides, always | Never |
 | Forward cash forecast | A transparent recurrence model over the merchant's own history | Never |
+| Credit-risk score (0-100) | A published formula over aging, lateness and exceptions, always | Never, only reads the number back |
 | Speech understanding, event structuring, explanation | Sets the tool contract the model must call into | Understands, chooses, phrases |
 
 The rule stated plainly: a model may listen, structure speech into a typed event, and explain a

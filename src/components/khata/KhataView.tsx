@@ -3,15 +3,24 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatINR } from "@/lib/money";
 import type { PartyLedgerSummary } from "@/lib/engine/khata";
+import type { CreditScoreResult } from "@/lib/engine/creditScore";
 import type { Party } from "@/lib/types";
 
 export interface KhataPartyRow {
   party: Party;
   summary: PartyLedgerSummary;
   medianDaysToPay: number;
+  creditScore: CreditScoreResult;
 }
+
+const CREDIT_BAND_CLASS: Record<CreditScoreResult["band"], string> = {
+  good: "border-good text-good",
+  fair: "border-warning text-warning",
+  poor: "border-critical text-critical",
+};
 
 export function KhataView({ rows, initialFocusId }: { rows: KhataPartyRow[]; initialFocusId?: string }) {
   const [query, setQuery] = useState("");
@@ -87,7 +96,28 @@ export function KhataView({ rows, initialFocusId }: { rows: KhataPartyRow[]; ini
           <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="font-heading font-bold text-lg">{selected.party.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-heading font-bold text-lg">{selected.party.name}</div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] cursor-default ${CREDIT_BAND_CLASS[selected.creditScore.band]}`}
+                      >
+                        Credit {selected.creditScore.score}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs max-w-[260px] space-y-1">
+                      <div className="font-mono">
+                        score = 100 - aging&times;0.40 - lateness&times;0.35 - exceptions&times;0.15 + tenure&times;0.10
+                      </div>
+                      <div>Aging penalty: {selected.creditScore.agingPenalty}</div>
+                      <div>Lateness penalty: {selected.creditScore.latenessPenalty}</div>
+                      <div>Exception penalty: {selected.creditScore.exceptionPenalty} ({selected.creditScore.exceptionCount} exception{selected.creditScore.exceptionCount === 1 ? "" : "s"})</div>
+                      <div>Tenure bonus: {selected.creditScore.tenureBonus}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {selected.party.phone} &middot; median {selected.medianDaysToPay}d to pay
                 </div>

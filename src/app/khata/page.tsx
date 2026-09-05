@@ -2,6 +2,7 @@ import { getStore } from "@/lib/store";
 import { DEMO_OWNER_UID } from "@/lib/owner";
 import { computePartyKhata } from "@/lib/engine/khata";
 import { medianDaysToPay } from "@/lib/engine/forecast";
+import { computeCreditScore } from "@/lib/engine/creditScore";
 import { todayIST } from "@/lib/ids";
 import { KhataView } from "@/components/khata/KhataView";
 
@@ -14,9 +15,10 @@ export default async function KhataPage({
 }) {
   const { focus } = await searchParams;
   const store = getStore();
-  const [parties, transactions] = await Promise.all([
+  const [parties, transactions, exceptions] = await Promise.all([
     store.listParties(DEMO_OWNER_UID),
     store.listTransactions(DEMO_OWNER_UID),
+    store.listExceptions(DEMO_OWNER_UID),
   ]);
 
   const asOfDate = transactions.length > 0 ? transactions[transactions.length - 1].date : todayIST();
@@ -27,6 +29,7 @@ export default async function KhataPage({
       party,
       summary: computePartyKhata(transactions, party.id, asOfDate),
       medianDaysToPay: medianDaysToPay(transactions, party.id),
+      creditScore: computeCreditScore(transactions, exceptions, party.id, asOfDate),
     }))
     .sort((a, b) => b.summary.outstandingPaise - a.summary.outstandingPaise);
 
