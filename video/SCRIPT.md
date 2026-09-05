@@ -120,8 +120,14 @@ recording is not the first time either has been tried.
 **Shot A (beat 3).** Fresh load of `/`. Click "Talk to Hisaab." Let the primer greeting play in
 full (shows the new orb overlay reacting). Then speak exactly:
 
-> "Sandeep ko do packet Amul Toned Milk, ek packet Lays chips, teen packet Maggi Noodles udhaar pe
+> "Sandeep ko do packet Parle-G biscuit, ek packet Lays chips, teen packet Maggi Noodles udhaar pe
 > de diya."
+
+(Revised twice during recording, first from "Amul Toned Milk" to "Amul milk", then to "Parle-G
+biscuit": the placeholder synthetic voice's pronunciation of the milk brand name fell just under the
+product fuzzy-match threshold both times, an artifact of the stand-in TTS voice specifically,
+confirmed directly by typing the same sentence as plain text, which resolved correctly. Parle-G
+biscuit, Lays chips and Maggi Noodles all matched cleanly on the first take.)
 
 Record through the full reply and until the tool-trace strip is expanded and visible.
 
@@ -136,9 +142,20 @@ This is the moneyshot of the whole video, the one moment worth a slow punch-in d
 Record: `/reconcile`, hovering a REVIEW-status row to show its confidence score sitting under 90%,
 then the Methodology modal (now a centered fade-in) opened to the precision/recall table.
 
-**Capture method:** a clean Chrome window driven against the local dev server, not recorded by
-hand, so the state is controlled and repeatable. Shots A and B spend a small number of real Sarvam
-STT/TTS credits each, so this step happens only when explicitly requested, not automatically.
+**Capture method:** a clean Chrome window driven against the live Vercel deployment, not the local
+dev server and not recorded by hand, so the state is controlled and repeatable. Shots A and B spend
+a small number of real Sarvam STT/TTS credits each; the spoken input for both was itself synthesized
+via Sarvam TTS as a placeholder voice, since no real narrator recording exists yet.
+
+**Status: captured.** All three raw shots exist in `video/raw-footage/`
+(`shot_a_multi_item_logging.webm`, `shot_b_settle_up_navigation.webm`,
+`shot_c_reconcile_methodology.webm`), untrimmed source material with generous lead-in, ready to cut
+in the edit. Shot A's demo sentence was revised mid-capture from "Amul Toned Milk" to "Parle-G
+biscuit, Lays chips, Maggi Noodles": the placeholder synthetic voice's pronunciation of "Toned" fell
+just under the product fuzzy-match threshold, an artifact of the stand-in TTS voice, not a product
+bug (confirmed directly: the same sentence typed as plain text resolved correctly). Re-record shots
+A and B with a real voice whenever narration is ready; the app-side behavior is already verified
+correct.
 
 ---
 
