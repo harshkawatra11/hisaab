@@ -132,7 +132,7 @@ export function KhataView({ rows, initialFocusId }: { rows: KhataPartyRow[]; ini
             </div>
 
             <Badge variant="outline" className="text-[10px]">
-              Send WhatsApp reminder, not wired in this prototype
+              WhatsApp reminders need a live phone number and a live bank feed; this demo runs on seeded data
             </Badge>
           </div>
         ) : (
