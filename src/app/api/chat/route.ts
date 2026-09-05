@@ -10,6 +10,7 @@ import { GeminiNotConfiguredError, generateWithFallback, isGeminiConfigured } fr
 import { dispatchTool } from "@/lib/agent/dispatch";
 import { TOOL_DECLARATIONS } from "@/lib/agent/dispatch";
 import { SYSTEM_PROMPT } from "@/lib/agent/systemPrompt";
+import { stripMarkdown } from "@/lib/agent/stripMarkdown";
 import { getStore } from "@/lib/store";
 import { DEMO_OWNER_UID } from "@/lib/owner";
 
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
 
       const calls = response.functionCalls ?? [];
       if (calls.length === 0) {
-        return NextResponse.json({ reply: response.text ?? "", toolTrace });
+        return NextResponse.json({ reply: stripMarkdown(response.text ?? ""), toolTrace });
       }
 
       contents.push({
