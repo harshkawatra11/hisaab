@@ -51,7 +51,11 @@ export async function openLiveSession(
     throw new Error(tokenResponse.reason ?? "No voice session available at this quota level.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: tokenResponse.token });
+  // Ephemeral-token auth is only fully supported on the v1alpha surface.
+  // Without this, the SDK connects on v1beta by default, the socket opens
+  // and then closes immediately with no error surfaced anywhere, since the
+  // server-side rejection happens after the handshake, not during it.
+  const ai = new GoogleGenAI({ apiKey: tokenResponse.token, httpOptions: { apiVersion: "v1alpha" } });
 
   const session = await ai.live.connect({
     model: tokenResponse.model,

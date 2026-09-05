@@ -8,9 +8,9 @@
 
 import { X, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { UseLiveSessionResult } from "@/components/voice/useLiveSession";
+import type { UseVoiceSessionResult } from "@/components/voice/useVoiceSession";
 
-export function VoiceDock({ session, onClose }: { session: UseLiveSessionResult; onClose: () => void }) {
+export function VoiceDock({ session, onClose }: { session: UseVoiceSessionResult; onClose: () => void }) {
   return (
     <div className="fixed bottom-4 right-4 w-[380px] max-h-[70vh] bg-card border border-border shadow-lg flex flex-col z-50">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -21,7 +21,9 @@ export function VoiceDock({ session, onClose }: { session: UseLiveSessionResult;
                 ? "bg-good animate-pulse"
                 : session.status === "speaking"
                   ? "bg-chart-1 animate-pulse"
-                  : "bg-muted-foreground"
+                  : session.status === "transcribing" || session.status === "thinking"
+                    ? "bg-chart-2 animate-pulse"
+                    : "bg-muted-foreground"
             }`}
           />
           <span className="text-sm font-medium">{session.statusLabel}</span>
@@ -34,14 +36,7 @@ export function VoiceDock({ session, onClose }: { session: UseLiveSessionResult;
       {session.durationWarning && (
         <div className="flex items-center gap-2 px-4 py-2 bg-warning/10 text-xs text-foreground border-b border-border">
           <AlertTriangle className="size-3.5 shrink-0 text-warning" />
-          This session is running long and will close soon to protect the shared voice quota.
-        </div>
-      )}
-
-      {session.status === "typed" && (
-        <div className="px-4 py-3 text-xs text-muted-foreground border-b border-border">
-          Voice budget is at capacity right now. Falling back to typed input, everything still
-          works, just without speech.
+          This session is running long and will close soon.
         </div>
       )}
 
