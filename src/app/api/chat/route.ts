@@ -44,35 +44,48 @@ export async function POST(req: Request) {
 
   const toolTrace: { name: string; args: unknown; result: unknown }[] = [];
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const { response } = await generateWithFallback(contents, {
-      systemInstruction: SYSTEM_PROMPT,
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS as never }],
-    });
-
-    const calls = response.functionCalls ?? [];
-    if (calls.length === 0) {
-      return NextResponse.json({ reply: response.text ?? "", toolTrace });
-    }
-
-    contents.push({
-      role: "model",
-      parts: calls.map((c) => ({ functionCall: { name: c.name, args: c.args } })),
-    });
-
-    const responseParts = [];
-    for (const call of calls) {
-      const result = await dispatchTool(ctx, call.name ?? "", call.args ?? {});
-      toolTrace.push({ name: call.name ?? "", args: call.args, result });
-      responseParts.push({
-        functionResponse: { name: call.name, response: { result } },
+  // dispatchTool already catches every tool-level failure and returns
+  // { ok: false, ... } rather than throwing, so the one exception that
+  // can reach here uncaught is generateWithFallback's own
+  // GeminiAllModelsFailedError, when every Gemini model and the
+  // OpenRouter last-resort tier all fail in the same request. Without
+  // this try/catch that crashes the route handler with no JSON body at
+  // all, and the client's res.json() call then throws a raw, unhelpful
+  // browser exception instead of a clean error message.
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const { response } = await generateWithFallback(contents, {
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ functionDeclarations: TOOL_DECLARATIONS as never }],
       });
-    }
-    contents.push({ role: "user", parts: responseParts });
-  }
 
-  return NextResponse.json(
-    { error: "Too many tool-call rounds without a final answer.", toolTrace },
-    { status: 500 }
-  );
+      const calls = response.functionCalls ?? [];
+      if (calls.length === 0) {
+        return NextResponse.json({ reply: response.text ?? "", toolTrace });
+      }
+
+      contents.push({
+        role: "model",
+        parts: calls.map((c) => ({ functionCall: { name: c.name, args: c.args } })),
+      });
+
+      const responseParts = [];
+      for (const call of calls) {
+        const result = await dispatchTool(ctx, call.name ?? "", call.args ?? {});
+        toolTrace.push({ name: call.name ?? "", args: call.args, result });
+        responseParts.push({
+          functionResponse: { name: call.name, response: { result } },
+        });
+      }
+      contents.push({ role: "user", parts: responseParts });
+    }
+
+    return NextResponse.json(
+      { error: "Too many tool-call rounds without a final answer.", toolTrace },
+      { status: 500 }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message, toolTrace }, { status: 502 });
+  }
 }

@@ -78,6 +78,21 @@ interface ChatApiResponse {
   toolTrace?: { name: string; args: unknown; result: unknown }[];
 }
 
+/** A route that crashes uncaught (a compile interruption, a dev-server
+ *  restart mid-request) can return an empty or non-JSON body even
+ *  though every route in this app is written to always return JSON.
+ *  Parsing that safely here means the user sees "the server had a
+ *  problem, try again", never a raw browser exception message like
+ *  "Failed to execute 'json' on 'Response': Unexpected end of JSON
+ *  input" rendered as if it were a normal status update. */
+async function readJsonSafely<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function useVoiceSession(onFocus: (view: string, entityId?: string) => void): UseVoiceSessionResult {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [statusLabel, setStatusLabel] = useState("idle");
@@ -226,7 +241,10 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: spokenText, history: historyBefore }),
         });
-        const data = (await res.json()) as ChatApiResponse;
+        const data = await readJsonSafely<ChatApiResponse>(res);
+        if (!data) {
+          throw new Error("The server had a problem answering. Try again.");
+        }
         if (!res.ok || data.error) {
           throw new Error(data.error ?? `Chat failed: ${res.status}`);
         }
@@ -307,7 +325,8 @@ export function useVoiceSession(onFocus: (view: string, entityId?: string) => vo
       const form = new FormData();
       form.append("file", wavBlob, "turn.wav");
       const res = await fetch("/api/voice/stt", { method: "POST", body: form });
-      const data = (await res.json()) as { text?: string; error?: string };
+      const data = await readJsonSafely<{ text?: string; error?: string }>(res);
+      if (!data) throw new Error("The server had a problem transcribing. Try again.");
       if (!res.ok || data.error) throw new Error(data.error ?? `STT failed: ${res.status}`);
 
       const text = (data.text ?? "").trim();
