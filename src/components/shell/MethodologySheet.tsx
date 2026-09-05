@@ -63,15 +63,16 @@ export function MethodologyContent() {
       </section>
 
       <section>
-        <h3 className="font-heading font-semibold mb-2">Voice, and what happens when the quota runs out</h3>
+        <h3 className="font-heading font-semibold mb-2">Voice, and how a turn actually works</h3>
         <p className="text-muted-foreground">
-          Voice runs on a token-budget limiter, not a request counter, since the account&apos;s Live
-          API models are unlimited on requests per minute and per day, only tokens per minute is
-          capped. Session length, not session count, is what burns that budget. When a model&apos;s
-          budget is exhausted the app degrades through a ladder rather than failing: full duplex
-          voice, then a fallback voice model, then transcribe-only (you still talk, the reply
-          comes back as text), then typed input. The current rung is always shown next to the
-          voice button.
+          Voice is a listen, think, speak loop across two independently verified providers,
+          Sarvam for speech in and speech out, Gemini for text reasoning and tool calls, not a
+          single live audio socket. A turn moves through four visible stages, listening,
+          transcribing, thinking, speaking, shown next to the voice button so a wait is always
+          labelled rather than silent. Reasoning tries `gemini-3.6-flash` first, falls back to
+          `gemini-3.7-flash` on a failure or an empty response, and only as a last resort falls
+          through once more to a free OpenRouter model. Speaking over the agent stops playback
+          immediately and opens a new turn.
         </p>
       </section>
 

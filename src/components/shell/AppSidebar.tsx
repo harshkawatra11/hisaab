@@ -20,8 +20,8 @@ export function AppSidebar() {
   return (
     <aside className="w-[248px] shrink-0 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border">
       <div className="px-5 pt-6 pb-5">
-        <div className="font-heading font-bold text-xl tracking-tight text-white">Hisaab</div>
-        <div className="text-xs text-sidebar-foreground/60 mt-0.5">हिसाब · finance controller</div>
+        <div className="font-heading font-bold text-xl tracking-tight text-white">HISAAB</div>
+        <div className="text-xs text-sidebar-foreground/60 mt-0.5">हिसाब · FINANCE CONTROLLER</div>
       </div>
 
       <nav className="flex-1 px-3 space-y-1">
@@ -78,7 +78,7 @@ export function AppSidebar() {
           </SheetTrigger>
           <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>Methodology</SheetTitle>
+              <SheetTitle className="tracking-tight">METHODOLOGY</SheetTitle>
             </SheetHeader>
             <MethodologyContent />
           </SheetContent>
