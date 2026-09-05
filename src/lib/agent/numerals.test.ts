@@ -43,6 +43,12 @@ describe("parseIndianNumeral", () => {
     expect(parseIndianNumeral("दो लाख")?.value).toBe(200000);
   });
 
+  it("accepts a plain digit string outright, since it is exact, not a guess", () => {
+    expect(parseIndianNumeral("2")?.value).toBe(2);
+    expect(parseIndianNumeral("2.5")?.value).toBe(2.5);
+    expect(parseIndianNumeral(" 12 ")?.value).toBe(12);
+  });
+
   it("returns null for an unrecognised phrase rather than guessing", () => {
     expect(parseIndianNumeral("purple elephant")).toBeNull();
     expect(parseIndianNumeral("")).toBeNull();

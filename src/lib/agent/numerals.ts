@@ -82,6 +82,15 @@ function tokenize(input: string): string[] {
  * "bara sau" -> 1200, "paune do" -> 1.75, "do lakh" -> 200000.
  */
 export function parseIndianNumeral(input: string): ParsedNumeral | null {
+  // A plain digit string ("2", "2.5") is not a guess, it is exact: there
+  // is no mishearing risk to guard against here the way there is for a
+  // spoken word, so accepting it outright costs nothing in safety and
+  // saves a wasted round trip when the caller already resolved a number.
+  const trimmed = input.trim();
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return { value: Number(trimmed), matchedTokens: [trimmed] };
+  }
+
   const tokens = tokenize(input);
   if (tokens.length === 0) return null;
 
