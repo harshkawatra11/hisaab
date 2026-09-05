@@ -42,6 +42,16 @@ beforeEach(async () => {
     gstRatePct: 5,
     stockQty: 50,
   });
+  await store.upsertProduct({
+    id: makeId("prd"),
+    ownerUid: OWNER,
+    name: "Lay's Classic Chips 52g",
+    normalizedName: normalizeName("Lay's Classic Chips 52g"),
+    unit: "packet",
+    unitPricePaise: 2000,
+    gstRatePct: 12,
+    stockQty: 40,
+  });
 });
 
 describe("recordBusinessEvents", () => {
@@ -102,6 +112,37 @@ describe("recordBusinessEvents", () => {
     expect(result.ok).toBe(true);
     const transactions = await store.listTransactions(OWNER);
     expect(transactions).toHaveLength(2);
+  });
+
+  it("logs a multi-item spoken order for one named customer as a single credit sale, fuzzy-matching brand phrasing", async () => {
+    // Mirrors the actual demo sentence: "Sandeep ko do packet Milk, ek
+    // packet chips, teen packet Bread udhaar pe de diya." A generic
+    // spoken word like "chips" must still resolve against the one
+    // catalog entry that contains it.
+    const result = await recordBusinessEvents(ctx, {
+      events: [
+        {
+          type: "credit_sale",
+          customerName: "Sandeep",
+          items: [
+            { productName: "Milk", qty: "do" },
+            { productName: "chips", qty: 1 },
+            { productName: "Bread", qty: "teen" },
+          ],
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.spokenSummary).toContain("Sandeep");
+
+    const transactions = await store.listTransactions(OWNER);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].items).toHaveLength(3);
+
+    const balance = await getPartyBalance(ctx, { partyName: "Sandeep" });
+    expect(balance.ok).toBe(true);
+    // 2 x 2500 + 1 x 2000 + 3 x 4000 = 5000 + 2000 + 12000 = 19000 paise = ₹190.00
+    expect(balance.spokenSummary).toContain("₹190.00");
   });
 });
 
