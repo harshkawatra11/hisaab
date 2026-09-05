@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutGrid, Scale, Users, BookOpen, Settings, Info } from "lucide-react";
 import { VoiceButton } from "@/components/voice/VoiceButton";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import { MethodologyContent } from "@/components/shell/MethodologySheet";
 
 const NAV_ITEMS = [
@@ -69,20 +69,20 @@ export function AppSidebar() {
           <Settings className="size-4" strokeWidth={2} />
           Settings
         </button>
-        <Sheet>
-          <SheetTrigger asChild>
+        <Dialog>
+          <DialogTrigger asChild>
             <button className="flex w-full items-center gap-3 px-3 py-2 text-sm text-sidebar-foreground/60 hover:text-white transition-colors">
               <Info className="size-4" strokeWidth={2} />
               Methodology
             </button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle className="tracking-tight">METHODOLOGY</SheetTitle>
-            </SheetHeader>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="tracking-tight">METHODOLOGY</DialogTitle>
+            </DialogHeader>
             <MethodologyContent />
-          </SheetContent>
-        </Sheet>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="px-5 py-4 border-t border-sidebar-border text-xs text-sidebar-foreground/50">
